@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.utils._joblib import Parallel, delayed
 
 from deslib.static.base import BaseStaticEnsemble
 
@@ -38,10 +39,12 @@ class StackedClassifier(BaseStaticEnsemble):
     def __init__(self,
                  pool_classifiers=None,
                  meta_classifier=None,
+                 n_jobs=None,
                  random_state=None):
 
         super(StackedClassifier, self).__init__(
             pool_classifiers=pool_classifiers,
+            n_jobs=n_jobs,
             random_state=random_state)
         self.meta_classifier = meta_classifier
 
@@ -142,11 +145,14 @@ class StackedClassifier(BaseStaticEnsemble):
         # Check if base classifiers implement the predict proba method.
         self._check_predict_proba()
 
-        probabilities = np.zeros(
-            (X.shape[0], self.n_classifiers_, self.n_classes_))
-
-        for index, clf in enumerate(self.pool_classifiers_):
-            probabilities[:, index] = clf.predict_proba(X)
+        # probabilities = np.zeros(
+        #     (X.shape[0], self.n_classifiers_, self.n_classes_))
+        #
+        # for index, clf in enumerate(self.pool_classifiers_):
+        #     probabilities[:, index] = clf.predict_proba(X)
+        probabilities = Parallel(n_jobs=self.n_jobs)(
+            delayed(clf.predict_proba)(X) for clf in self.pool_classifiers_)
+        probabilities = np.asarray(probabilities).swapaxes(0, 1)
         return probabilities.reshape(X.shape[0],
                                      self.n_classifiers_ * self.n_classes_)
 
