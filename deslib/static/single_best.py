@@ -5,8 +5,10 @@
 # License: BSD 3 clause
 
 import numpy as np
-from .base import BaseStaticEnsemble
+from sklearn.utils._joblib import Parallel, delayed
 from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
+
+from .base import BaseStaticEnsemble
 
 
 class SingleBest(BaseStaticEnsemble):
@@ -44,7 +46,8 @@ class SingleBest(BaseStaticEnsemble):
 
     def __init__(self, pool_classifiers=None, random_state=None):
         super(SingleBest, self).__init__(pool_classifiers=pool_classifiers,
-                                         random_state=random_state)
+                                         random_state=random_state,
+                                         n_jobs=None)
 
     def fit(self, X, y):
         """Fit the model by selecting the base classifier with the highest
@@ -64,10 +67,16 @@ class SingleBest(BaseStaticEnsemble):
 
         super(SingleBest, self).fit(X, y)
 
-        performances = np.zeros(self.n_classifiers_)
-        for idx, clf in enumerate(self.pool_classifiers_):
-            performances[idx] = clf.score(X, self.y_enc_)
-        self.best_clf_index_ = np.argmax(idx)
+        # performances = np.zeros(self.n_classifiers_)
+        #
+        # for idx, clf in enumerate(self.pool_classifiers_):
+        #     performances[idx] = clf.score(X, self.y_enc_)
+
+        performances = Parallel(n_jobs=self.n_jobs)(
+            delayed(clf.score)(X, self.y_enc_) for clf in
+            self.pool_classifiers_)
+
+        self.best_clf_index_ = np.argmax(performances)
         self.best_clf_ = self.pool_classifiers_[self.best_clf_index_]
 
         return self

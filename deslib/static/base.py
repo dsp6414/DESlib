@@ -46,8 +46,9 @@ class BaseStaticEnsemble(BaseEstimator, ClassifierMixin):
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def __init__(self, pool_classifiers=None, random_state=None):
+    def __init__(self, pool_classifiers=None, n_jobs=None, random_state=None):
         self.pool_classifiers = pool_classifiers
+        self.n_jobs = n_jobs
         self.random_state = random_state
 
     def fit(self, X, y):

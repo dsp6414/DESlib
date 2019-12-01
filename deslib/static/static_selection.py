@@ -8,6 +8,7 @@ import numpy as np
 from .base import BaseStaticEnsemble
 from deslib.util.aggregation import majority_voting
 from sklearn.utils.validation import check_is_fitted, check_X_y, check_array
+from sklearn.utils._joblib import Parallel, delayed
 
 
 class StaticSelection(BaseStaticEnsemble):
@@ -50,9 +51,11 @@ class StaticSelection(BaseStaticEnsemble):
 
     def __init__(self, pool_classifiers=None,
                  pct_classifiers=0.5,
-                 random_state=None):
+                 random_state=None,
+                 n_jobs=None):
         super(StaticSelection, self).__init__(
-            pool_classifiers=pool_classifiers, random_state=random_state)
+            pool_classifiers=pool_classifiers, n_jobs=n_jobs,
+            random_state=random_state)
         self.pct_classifiers = pct_classifiers
 
     def fit(self, X, y):
@@ -82,10 +85,14 @@ class StaticSelection(BaseStaticEnsemble):
         self.n_classifiers_ensemble_ = int(
             self.n_classifiers_ * self.pct_classifiers)
 
-        performances = np.zeros(self.n_classifiers_)
+        # performances = np.zeros(self.n_classifiers_)
+        #
+        # for clf_idx, clf in enumerate(self.pool_classifiers_):
+        #     performances[clf_idx] = clf.score(X, self.y_enc_)
 
-        for clf_idx, clf in enumerate(self.pool_classifiers_):
-            performances[clf_idx] = clf.score(X, self.y_enc_)
+        performances = Parallel(n_jobs=self.n_jobs)(
+            delayed(clf.score)(X, self.y_enc_) for clf in
+            self.pool_classifiers_)
 
         self.clf_indices_ = np.argsort(performances)[::-1][
                             0:self.n_classifiers_ensemble_]
