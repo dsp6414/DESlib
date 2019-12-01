@@ -27,9 +27,10 @@ from deslib.des.meta_des import METADES
 from deslib.des.probabilistic import RRC, MinimumDifference, DESKL
 from deslib.des.des_mi import DESMI
 # Static techniques
-from deslib.static.oracle import Oracle
-from deslib.static.single_best import SingleBest
-from deslib.static.static_selection import StaticSelection
+from deslib.static import Oracle
+from deslib.static import SingleBest
+from deslib.static import StaticSelection
+from deslib.static import StackedClassifier
 from sklearn.model_selection import GridSearchCV
 import pytest
 import warnings
@@ -305,6 +306,14 @@ def test_single_best():
     single_best = SingleBest(pool_classifiers)
     single_best.fit(X_dsel, y_dsel)
     assert np.isclose(single_best.score(X_test, y_test), 0.9680851063829787)
+
+
+def test_stacked_classifier():
+    pool_classifiers, X_dsel, y_dsel, X_test, y_test = setup_classifiers()
+
+    stacked = StackedClassifier(pool_classifiers)
+    stacked.fit(X_dsel, y_dsel)
+    assert np.isclose(stacked.score(X_test, y_test), 0.973404255319149)
 
 
 def test_static_selection():
