@@ -18,6 +18,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import (check_X_y, check_is_fitted, check_array,
                                       check_random_state)
+from sklearn.utils._joblib import Parallel, delayed
 from deslib.util import faiss_knn_wrapper
 from deslib.util import KNNE
 from deslib.util.instance_hardness import hardness_region_competence
@@ -38,7 +39,8 @@ class BaseDS(BaseEstimator, ClassifierMixin):
     @abstractmethod
     def __init__(self, pool_classifiers=None, k=7, DFP=False, with_IH=False,
                  safe_k=None, IH_rate=0.30, needs_proba=False,
-                 random_state=None, knn_classifier='knn', DSEL_perc=0.5):
+                 random_state=None, knn_classifier='knn', DSEL_perc=0.5,
+                 n_jobs=None):
 
         self.pool_classifiers = pool_classifiers
         self.k = k
@@ -50,6 +52,7 @@ class BaseDS(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.knn_classifier = knn_classifier
         self.DSEL_perc = DSEL_perc
+        self.n_jobs = n_jobs
 
         # Check optional dependency
         if knn_classifier == 'faiss' and not faiss_knn_wrapper.is_available():
@@ -745,13 +748,20 @@ class BaseDS(BaseEstimator, ClassifierMixin):
                       The predictions of each base classifier for all samples
                       in X.
         """
-        predictions = np.zeros((X.shape[0], self.n_classifiers_),
-                               dtype=np.intp)
-
-        for index, clf in enumerate(self.pool_classifiers_):
+        def pred_encode(self, clf, X):
             labels = clf.predict(X)
-            predictions[:, index] = self._encode_base_labels(labels)
-        return predictions
+            return self._encode_base_labels(labels)
+
+        pred = Parallel(n_jobs=None)(delayed(pred_encode)(self, clf, X)
+                                   for clf in self.pool_classifiers_)
+        # predictions = np.zeros((X.shape[0], self.n_classifiers_),
+        #                        dtype=np.intp)
+        #
+        # for index, clf in enumerate(self.pool_classifiers_):
+        #     labels = clf.predict(X)
+        #     predictions[:, index] = self._encode_base_labels(labels)
+        # return predictions
+        return np.asarray(pred, dtype=int).T
 
     def _predict_proba_base(self, X):
         """ Get the predictions (probabilities) of each base classifier in the
@@ -788,12 +798,12 @@ class BaseDS(BaseEstimator, ClassifierMixin):
                  classifier in the generated_pool
                  for each sample in X.
         """
-        scores = np.empty(
-            (self.n_samples_, self.n_classifiers_, self.n_classes_))
-        for index, clf in enumerate(self.pool_classifiers_):
-            scores[:, index, :] = clf.predict_proba(self.DSEL_data_)
+        # scores = np.empty(
+        #     (self.n_samples_, self.n_classifiers_, self.n_classes_))
+        # for index, clf in enumerate(self.pool_classifiers_):
+        #     scores[:, index, :] = clf.predict_proba(self.DSEL_data_)
 
-        return scores
+        return self._predict_proba_base(self.DSEL_data_)
 
     @staticmethod
     def _all_classifier_agree(predictions):
