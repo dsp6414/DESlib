@@ -782,12 +782,17 @@ class BaseDS(BaseEstimator, ClassifierMixin):
                         Probabilities estimates of each base classifier for all
                         test samples.
         """
-        probabilities = np.zeros(
-            (X.shape[0], self.n_classifiers_, self.n_classes_))
+        probabilities = Parallel(n_jobs=self.n_jobs)(
+            delayed(clf.predict_proba)(X) for clf in self.pool_classifiers_)
+        probabilities = np.asarray(probabilities).swapaxes(0, 1)
 
-        for index, clf in enumerate(self.pool_classifiers_):
-            probabilities[:, index] = clf.predict_proba(X)
         return probabilities
+        # probabilities = np.zeros(
+        #     (X.shape[0], self.n_classifiers_, self.n_classes_))
+        #
+        # for index, clf in enumerate(self.pool_classifiers_):
+        #     probabilities[:, index] = clf.predict_proba(X)
+        # return probabilities
 
     @staticmethod
     def _all_classifier_agree(predictions):
