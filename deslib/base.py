@@ -5,24 +5,25 @@
 # License: BSD 3 clause
 
 
+import functools
+import math
+import warnings
 from abc import abstractmethod, ABCMeta
 
-import math
 import numpy as np
-import functools
 from scipy.stats import mode
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import BaseEnsemble, BaggingClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils._joblib import Parallel, delayed
 from sklearn.utils.validation import (check_X_y, check_is_fitted, check_array,
                                       check_random_state)
-from sklearn.utils._joblib import Parallel, delayed
-from deslib.util import faiss_knn_wrapper
+
 from deslib.util import KNNE
+from deslib.util import faiss_knn_wrapper
 from deslib.util.instance_hardness import hardness_region_competence
-import warnings
 
 
 class BaseDS(BaseEstimator, ClassifierMixin):
@@ -748,12 +749,16 @@ class BaseDS(BaseEstimator, ClassifierMixin):
                       The predictions of each base classifier for all samples
                       in X.
         """
+
         def pred_encode(self, clf, X):
             labels = clf.predict(X)
             return self._encode_base_labels(labels)
 
-        pred = Parallel(n_jobs=None)(delayed(pred_encode)(self, clf, X)
-                                   for clf in self.pool_classifiers_)
+        pred = Parallel(n_jobs=self.n_jobs)(delayed(pred_encode)(self, clf, X)
+                                            for clf in self.pool_classifiers_)
+
+        predictions = np.asarray(pred, dtype=int).T
+        return predictions
         # predictions = np.zeros((X.shape[0], self.n_classifiers_),
         #                        dtype=np.intp)
         #
@@ -761,7 +766,6 @@ class BaseDS(BaseEstimator, ClassifierMixin):
         #     labels = clf.predict(X)
         #     predictions[:, index] = self._encode_base_labels(labels)
         # return predictions
-        return np.asarray(pred, dtype=int).T
 
     def _predict_proba_base(self, X):
         """ Get the predictions (probabilities) of each base classifier in the
@@ -784,26 +788,6 @@ class BaseDS(BaseEstimator, ClassifierMixin):
         for index, clf in enumerate(self.pool_classifiers_):
             probabilities[:, index] = clf.predict_proba(X)
         return probabilities
-
-    def _preprocess_dsel_scores(self):
-        """Compute the output profiles of the dynamic selection dataset (DSEL)
-         Each position of the output profiles vector is the score obtained by a
-         base classifier :math:`c_{i}`
-         for the classes of the input sample.
-
-        Returns
-        -------
-        scores : array of shape = [n_samples, n_classifiers, n_classes]
-                 Scores (probabilities) for each class obtained by each base
-                 classifier in the generated_pool
-                 for each sample in X.
-        """
-        # scores = np.empty(
-        #     (self.n_samples_, self.n_classifiers_, self.n_classes_))
-        # for index, clf in enumerate(self.pool_classifiers_):
-        #     scores[:, index, :] = clf.predict_proba(self.DSEL_data_)
-
-        return self._predict_proba_base(self.DSEL_data_)
 
     @staticmethod
     def _all_classifier_agree(predictions):
@@ -891,8 +875,8 @@ class BaseDS(BaseEstimator, ClassifierMixin):
             raise ValueError("Number of features of the model must "
                              "match the input. Model n_features_ is {} and "
                              "input n_features_ is {} ".format(
-                                self.n_features_,
-                                n_features))
+                self.n_features_,
+                n_features))
 
     def _check_predict_proba(self):
         """ Checks if each base classifier in the pool implements the

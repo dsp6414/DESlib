@@ -249,16 +249,6 @@ def test_bad_input_X(X_test, create_X_y):
         ds_test.predict(X_test)
 
 
-def test_preprocess_dsel_scores(create_X_y, create_pool_classifiers):
-    X, y = create_X_y
-    ds_test = BaseDS(create_pool_classifiers)
-    ds_test.fit(X, y)
-    dsel_scores = ds_test._preprocess_dsel_scores()
-    expected = np.array([[0.5, 0.5], [1.0, 0.0], [0.33, 0.67]])
-    expected = np.tile(expected, (15, 1, 1))
-    assert np.array_equal(dsel_scores, expected)
-
-
 def test_DFP_is_used(example_estimate_competence, create_pool_classifiers):
     X, y, neighbors, _, dsel_processed, _ = example_estimate_competence
     ds_test = BaseDS(create_pool_classifiers, DFP=True, safe_k=3)
